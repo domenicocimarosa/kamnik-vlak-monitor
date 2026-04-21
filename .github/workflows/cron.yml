@@ -3,19 +3,19 @@ name: Zajem podatkov o zamudah
 on:
   schedule:
     - cron: '*/15 * * * *'  # Vsakih 15 minut
-  workflow_dispatch:      # Omogoča tudi ročni zagon
+  workflow_dispatch:      # Omogoča ročni zagon
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout kode
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4  # Posodobljeno z v3 na v4
 
       - name: Nastavitev Python-a
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5  # Posodobljeno z v4 na v5
         with:
-          python-version: '3.9'
+          python-version: '3.11'   # Uporabimo novejši Python
 
       - name: Namestitev knjižnic
         run: |
