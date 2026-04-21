@@ -5,66 +5,68 @@ import os
 import re
 
 def check_delays():
-    # Glavna stran z zamudami
     url = "https://potniski.sz.si/pomoc-uporabnikom-in-stanje-v-prometu/"
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept-Language': 'sl-SI,sl;q=0.9,en-US;q=0.8,en;q=0.7'
     }
     
     try:
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=20)
         response.encoding = 'utf-8'
-        html_content = response.text
+        html = response.text
         
-        # Razbijemo vsebino po vrsticah/blokih, da lažje iščemo
-        blocks = re.split(r'</tr>|</div>', html_content)
+        # Iskanje vseh blokov, ki vsebujejo postajo Kamnik ali progo do Grabna
+        # Uporabimo delitev po vrsticah tabele ali značilnih ločilih
+        segments = re.split(r'<tr>|<div class="vlak-row">', html)
         vlak_data = []
         
-        for block in blocks:
-            # Preverimo, če blok vsebuje Kamnik in besedo "min" (ki označuje zamudo)
-            if ("Kamnik" in block or "Graben" in block) and "min" in block:
-                # Očistimo HTML značke, da dobimo čisto besedilo
-                clean_text = re.sub('<[^<]+?>', ' ', block)
+        for seg in segments:
+            # Preverimo če je v tem delu kode Kamnik
+            if "Kamnik" in seg or "Graben" in seg:
+                # 1. Izluščimo številko zamude (iščemo vzorec npr. 26 min)
+                # Ta regex pokrije "26 min", "3 min", "PREDVIDENA ZAMUDA 10 min" itd.
+                delay_match = re.search(r'(\d+)\s*min', seg)
                 
-                # Izvlečemo številko vlaka (npr. LP 3186)
-                vlak_match = re.search(r'LP\s*\d+', clean_text)
-                vlak_id = vlak_match.group(0) if vlak_match else "Vlak"
-                
-                # Izvlečemo minute zamude
-                minute_match = re.search(r'(\d+)\s*min', clean_text)
-                if minute_match:
-                    minute = int(minute_match.group(1))
+                if delay_match:
+                    minute = int(delay_match.group(1))
                     
-                    podatki = {
+                    # 2. Izluščimo številko vlaka (iščemo npr. LP 3187)
+                    vlak_match = re.search(r'LP\s*(\d+)', seg)
+                    vlak_id = f"LP {vlak_match.group(1)}" if vlak_match else "Vlak"
+                    
+                    # 3. Določimo relacijo
+                    relacija = "Kamnik Graben - Ljubljana" if "Ljubljana" in seg else "Ljubljana - Kamnik Graben"
+                    
+                    vlak_data.append({
                         "cas_zajema": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         "vlak": vlak_id,
-                        "relacija": "Ljubljana - Kamnik",
+                        "relacija": relacija,
                         "zamuda": minute,
-                        "vzrok": "Zabeleženo na SŽ"
-                    }
-                    vlak_data.append(podatki)
-        
+                        "vzrok": "Zabeležena zamuda v prometu"
+                    })
+
         if vlak_data:
-            # Odstranimo dvojnike (če isti vlak najde večkrat v kodi)
+            # Odstranimo morebitne dvojnike v istem zajemu
             df = pd.DataFrame(vlak_data).drop_duplicates(subset=['vlak', 'zamuda'])
             file_exists = os.path.isfile('zamude.csv')
             df.to_csv('zamude.csv', mode='a', index=False, header=not file_exists)
-            print(f"Najdeno in shranjeno: {len(df)} zamud.")
+            print(f"Uspeh! Zabeleženih {len(df)} zamud.")
         else:
-            # Če ni zamud, zapišemo sistemsko vrstico
-            df_prazno = pd.DataFrame([{
+            # Če ni zamud, zapišemo sistemsko vrstico, da vemo, da je scraper delal
+            df_empty = pd.DataFrame([{
                 "cas_zajema": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "vlak": "SISTEM",
-                "relacija": "Brez zamud",
+                "vlak": "INFO",
+                "relacija": "Kamnik proga",
                 "zamuda": 0,
-                "vzrok": "Vse teče po voznem redu"
+                "vzrok": "Vozni red b.p."
             }])
             file_exists = os.path.isfile('zamude.csv')
-            df_prazno.to_csv('zamude.csv', mode='a', index=False, header=not file_exists)
-            print("Zamud trenutno ni v kodi strani.")
+            df_empty.to_csv('zamude.csv', mode='a', index=False, header=not file_exists)
+            print("Trenutno ni zaznanih zamud v kodi.")
 
     except Exception as e:
-        print(f"Napaka: {e}")
+        print(f"Napaka pri zajemu: {e}")
 
 if __name__ == "__main__":
     check_delays()
