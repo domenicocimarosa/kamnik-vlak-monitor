@@ -5,68 +5,66 @@ import os
 import re
 
 def check_delays():
+    # SŽ pogosto uporablja ta pod-naslov za osveževanje podatkov
     url = "https://potniski.sz.si/pomoc-uporabnikom-in-stanje-v-prometu/"
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Accept-Language': 'sl-SI,sl;q=0.9,en-US;q=0.8,en;q=0.7'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
     }
     
     try:
-        response = requests.get(url, headers=headers, timeout=20)
+        response = requests.get(url, headers=headers, timeout=30)
         response.encoding = 'utf-8'
         html = response.text
         
-        # Iskanje vseh blokov, ki vsebujejo postajo Kamnik ali progo do Grabna
-        # Uporabimo delitev po vrsticah tabele ali značilnih ločilih
-        segments = re.split(r'<tr>|<div class="vlak-row">', html)
+        # Zdaj iščemo VSE kar diši po zamudi v celotnem tekstu, 
+        # ne glede na to kje v kodi se nahaja
         vlak_data = []
         
-        for seg in segments:
-            # Preverimo če je v tem delu kode Kamnik
-            if "Kamnik" in seg or "Graben" in seg:
-                # 1. Izluščimo številko zamude (iščemo vzorec npr. 26 min)
-                # Ta regex pokrije "26 min", "3 min", "PREDVIDENA ZAMUDA 10 min" itd.
-                delay_match = re.search(r'(\d+)\s*min', seg)
-                
+        # Poiščemo vse številke vlakov (LP ali RG) in besedilo okoli njih
+        # Ta vzorec ujame vlak in do 200 znakov besedila za njim
+        matches = re.findall(r'((?:LP|RG|IC|EC|EN|MV|MVG)\s*\d+).*?(?=LP|RG|IC|EC|EN|MV|MVG|$)', html, re.DOTALL)
+        
+        for match in matches:
+            vlak_info = match
+            # Preverimo če je v tem bloku Kamnik ali Graben
+            if "Kamnik" in vlak_info or "Graben" in vlak_info:
+                # Iščemo karkoli z "min"
+                delay_match = re.search(r'(\d+)\s*min', vlak_info)
                 if delay_match:
                     minute = int(delay_match.group(1))
                     
-                    # 2. Izluščimo številko vlaka (iščemo npr. LP 3187)
-                    vlak_match = re.search(r'LP\s*(\d+)', seg)
-                    vlak_id = f"LP {vlak_match.group(1)}" if vlak_match else "Vlak"
-                    
-                    # 3. Določimo relacijo
-                    relacija = "Kamnik Graben - Ljubljana" if "Ljubljana" in seg else "Ljubljana - Kamnik Graben"
+                    # Najdemo številko vlaka
+                    vlak_id_match = re.search(r'(?:LP|RG|IC|EC|EN|MV|MVG)\s*\d+', vlak_info)
+                    vlak_id = vlak_id_match.group(0) if vlak_id_match else "Vlak"
                     
                     vlak_data.append({
                         "cas_zajema": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         "vlak": vlak_id,
-                        "relacija": relacija,
+                        "relacija": "Ljubljana - Kamnik",
                         "zamuda": minute,
-                        "vzrok": "Zabeležena zamuda v prometu"
+                        "vzrok": "Zaznana zamuda"
                     })
 
         if vlak_data:
-            # Odstranimo morebitne dvojnike v istem zajemu
             df = pd.DataFrame(vlak_data).drop_duplicates(subset=['vlak', 'zamuda'])
             file_exists = os.path.isfile('zamude.csv')
             df.to_csv('zamude.csv', mode='a', index=False, header=not file_exists)
-            print(f"Uspeh! Zabeleženih {len(df)} zamud.")
+            print(f"Uspeh! Najdenih {len(df)} zamud.")
         else:
-            # Če ni zamud, zapišemo sistemsko vrstico, da vemo, da je scraper delal
-            df_empty = pd.DataFrame([{
+            # Če res nič ne najde, vsaj zapišemo da smo preverili
+            df_check = pd.DataFrame([{
                 "cas_zajema": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "vlak": "INFO",
+                "vlak": "PREVERJENO",
                 "relacija": "Kamnik proga",
                 "zamuda": 0,
-                "vzrok": "Vozni red b.p."
+                "vzrok": "Ni najdenih zamud v kodi"
             }])
             file_exists = os.path.isfile('zamude.csv')
-            df_empty.to_csv('zamude.csv', mode='a', index=False, header=not file_exists)
-            print("Trenutno ni zaznanih zamud v kodi.")
+            df_check.to_csv('zamude.csv', mode='a', index=False, header=not file_exists)
+            print("V kodi strani ni najdenih aktivnih minut zamud.")
 
     except Exception as e:
-        print(f"Napaka pri zajemu: {e}")
+        print(f"Napaka: {e}")
 
 if __name__ == "__main__":
     check_delays()
