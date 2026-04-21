@@ -2,22 +2,22 @@ name: Zajem podatkov o zamudah
 
 on:
   schedule:
-    - cron: '*/15 * * * *'  # Vsakih 15 minut
-  workflow_dispatch:      # Omogoča ročni zagon
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true  # Ta vrstica odstrani opozorilo
+    permissions:
+      contents: write # To zagotovi pravice za pisanje neposredno v kodi
     steps:
       - name: Checkout kode
-        uses: actions/checkout@v4  # Posodobljeno z v3 na v4
+        uses: actions/checkout@v4.1.7 # Specifična podverzija
 
       - name: Nastavitev Python-a
-        uses: actions/setup-python@v5  # Posodobljeno z v4 na v5
+        uses: actions/setup-python@v5.1.0 # Specifična podverzija
         with:
-          python-version: '3.11'   # Uporabimo novejši Python
+          python-version: '3.11'
 
       - name: Namestitev knjižnic
         run: |
