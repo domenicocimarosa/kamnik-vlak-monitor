@@ -7,6 +7,7 @@ import os  # <--- TA VRSTICA JE MANJKALA
 st.set_page_config(page_title="Kamniški Vlak - Monitor Zamud", layout="wide")
 
 st.title("🚉 Stanje na progi Ljubljana - Kamnik Graben")
+st.markdown("### 🕒 Zadnja osvežitev: " + df['cas_zajema'].iloc[-1].strftime('%H:%M'))
 
 # Gumb za ročni zajem (opcijsko, na Streamlit Cloud morda ne bo deloval direktno)
 if st.button('Osveži podatke zdaj'):
