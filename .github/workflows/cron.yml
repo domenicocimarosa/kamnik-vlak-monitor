@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true  # Ta vrstica odstrani opozorilo
     steps:
       - name: Checkout kode
         uses: actions/checkout@v4  # Posodobljeno z v3 na v4
