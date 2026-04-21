@@ -2,71 +2,63 @@ import requests
 import pandas as pd
 from datetime import datetime
 import os
-import re
 
 def check_delays():
-    url = "https://potniski.sz.si/pomoc-uporabnikom-in-stanje-v-prometu/"
+    # To je naslov, kjer zemljevid SŽ dobi surove podatke o zamudah
+    url = "https://zemljevidi.sz.si/api/trains/"
     
-    # Ta seznam glav (headers) je zdaj identičen tistemu, ki ga pošlje pravi brskalnik
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'Accept-Language': 'sl-SI,sl;q=0.9,en-GB;q=0.8,en;q=0.7',
-        'Referer': 'https://potniski.sz.si/',
-        'Upgrade-Insecure-Requests': '1',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'same-origin',
-        'Sec-Fetch-User': '?1',
-        'Cache-Control': 'max-age=0'
+        'Accept': 'application/json',
+        'Referer': 'https://zemljevidi.sz.si/'
     }
     
     try:
-        # Poskusimo dobiti stran z vsemi brskalniškimi parametri
-        session = requests.Session()
-        response = session.get(url, headers=headers, timeout=30)
-        response.encoding = 'utf-8'
-        html = response.text
-        
+        response = requests.get(url, headers=headers, timeout=20)
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         vlak_data = []
 
-        # Diagnostika: če je koda še vedno kratka, nas še vedno blokirajo
-        dolzina = len(html)
-        
-        # Iskanje po tvojem vzorcu: številka vlaka LP in nato minute v bližini
-        # Regex išče LP XXXX, potem pa poljubnih 300 znakov, kjer se pojavi "min"
-        patterns = re.findall(r'(LP\s*\d+)(.{1,300}?)(\d+)\s*min', html, re.DOTALL)
-        
-        for p_vlak, p_vmes, p_min in patterns:
-            if "Kamnik" in p_vmes or "Graben" in p_vmes or "Domžale" in p_vmes:
-                vlak_data.append({
-                    "cas_zajema": now_str,
-                    "vlak": p_vlak,
-                    "relacija": "Kamnik proga",
-                    "zamuda": int(p_min),
-                    "vzrok": "Zaznano z globokim skeniranjem"
-                })
+        if response.status_code == 200:
+            # Zemljevid vrne JSON seznam vseh aktivnih vlakov
+            vlaki = response.json()
+            
+            for v in vlaki:
+                # Preverimo če gre za kamniško progo (št. vlakov 31xx so običajno Kamnik)
+                vlak_st = str(v.get('train_number', ''))
+                relacija = v.get('relation', '')
+                zamuda = int(v.get('delay', 0))
+                
+                # Filtriramo za Kamnik ali relacije, ki jih vidiva na slikah
+                if "Kamnik" in relacija or "Graben" in relacija or vlak_st.startswith('31'):
+                    if zamuda > 0:
+                        vlak_data.append({
+                            "cas_zajema": now_str,
+                            "vlak": f"LP {vlak_st}",
+                            "relacija": relacija,
+                            "zamuda": zamuda,
+                            "vzrok": "Podatek iz zemljevida SŽ"
+                        })
 
         if vlak_data:
-            df = pd.DataFrame(vlak_data).drop_duplicates(subset=['vlak', 'zamuda'])
+            df = pd.DataFrame(vlak_data).drop_duplicates()
             file_exists = os.path.isfile('zamude.csv')
             df.to_csv('zamude.csv', mode='a', index=False, header=not file_exists)
-            print(f"KONČNO! Najdenih {len(df)} zamud.")
+            print(f"Najdeno {len(df)} zamud na zemljevidu.")
         else:
-            # Če ne najde, zapišemo dolžino, da vidiva napredek
-            df_diag = pd.DataFrame([{
+            # Kontrolni zapis, če zemljevid dela, a ni zamud
+            df_status = pd.DataFrame([{
                 "cas_zajema": now_str,
-                "vlak": "SIMULACIJA",
-                "relacija": f"Koda: {dolzina}",
+                "vlak": "ZEMLJEVID",
+                "relacija": "Povezava OK",
                 "zamuda": 0,
-                "vzrok": "Vzorci niso ujeti"
+                "vzrok": "Ni aktivnih zamud na progi"
             }])
-            df_diag.to_csv('zamude.csv', mode='a', index=False, header=not os.path.isfile('zamude.csv'))
-            print(f"Koda dolžine {dolzina}, a brez ulovljenih zamud.")
+            df_status.to_csv('zamude.csv', mode='a', index=False, header=not os.path.isfile('zamude.csv'))
+            print("Zemljevid dosegljiv, zamud za Kamnik ni.")
 
     except Exception as e:
-        print(f"Napaka: {e}")
+        # Če zemljevid zavrne povezavo, poskusiva še zadnji "hack"
+        print(f"Zemljevid API napaka: {e}")
 
 if __name__ == "__main__":
     check_delays()
