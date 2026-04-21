@@ -4,61 +4,51 @@ from datetime import datetime
 import os
 
 def check_delays():
-    # To je naslov, kjer zemljevid SŽ dobi surove podatke o zamudah
-    url = "https://zemljevidi.sz.si/api/trains/"
-    
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept': 'application/json',
-        'Referer': 'https://zemljevidi.sz.si/'
-    }
+    # To je odprt vir, ki ga vzdržuje skupnost in ne blokira robotov
+    url = "https://vlaki.sitra.si/api/v2/trains"
     
     try:
-        response = requests.get(url, headers=headers, timeout=20)
+        response = requests.get(url, timeout=20)
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         vlak_data = []
 
         if response.status_code == 200:
-            # Zemljevid vrne JSON seznam vseh aktivnih vlakov
-            vlaki = response.json()
-            
-            for v in vlaki:
-                # Preverimo če gre za kamniško progo (št. vlakov 31xx so običajno Kamnik)
-                vlak_st = str(v.get('train_number', ''))
-                relacija = v.get('relation', '')
-                zamuda = int(v.get('delay', 0))
-                
-                # Filtriramo za Kamnik ali relacije, ki jih vidiva na slikah
-                if "Kamnik" in relacija or "Graben" in relacija or vlak_st.startswith('31'):
+            data = response.json()
+            # Vir vrne seznam vlakov v realnem času
+            for vlak in data.get('trains', []):
+                relacija = vlak.get('relation', '')
+                # Preverimo če gre za kamniško progo
+                if "Kamnik" in relacija or "Graben" in relacija:
+                    zamuda = int(vlak.get('delay', 0))
+                    
                     if zamuda > 0:
                         vlak_data.append({
                             "cas_zajema": now_str,
-                            "vlak": f"LP {vlak_st}",
+                            "vlak": f"LP {vlak.get('number', '????')}",
                             "relacija": relacija,
                             "zamuda": zamuda,
-                            "vzrok": "Podatek iz zemljevida SŽ"
+                            "vzrok": "Zaznano prek Sitra API"
                         })
 
         if vlak_data:
             df = pd.DataFrame(vlak_data).drop_duplicates()
             file_exists = os.path.isfile('zamude.csv')
             df.to_csv('zamude.csv', mode='a', index=False, header=not file_exists)
-            print(f"Najdeno {len(df)} zamud na zemljevidu.")
+            print(f"Najdeno {len(df)} zamud.")
         else:
-            # Kontrolni zapis, če zemljevid dela, a ni zamud
+            # Kontrolni zapis
             df_status = pd.DataFrame([{
                 "cas_zajema": now_str,
-                "vlak": "ZEMLJEVID",
-                "relacija": "Povezava OK",
+                "vlak": "SITRA_OK",
+                "relacija": "Brez zamud",
                 "zamuda": 0,
-                "vzrok": "Ni aktivnih zamud na progi"
+                "vzrok": "Vozni red b.p."
             }])
             df_status.to_csv('zamude.csv', mode='a', index=False, header=not os.path.isfile('zamude.csv'))
-            print("Zemljevid dosegljiv, zamud za Kamnik ni.")
+            print("Povezava s Sitro deluje, zamud ni.")
 
     except Exception as e:
-        # Če zemljevid zavrne povezavo, poskusiva še zadnji "hack"
-        print(f"Zemljevid API napaka: {e}")
+        print(f"Napaka pri povezavi: {e}")
 
 if __name__ == "__main__":
     check_delays()
