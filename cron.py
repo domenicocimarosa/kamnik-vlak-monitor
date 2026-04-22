@@ -25,10 +25,14 @@ def check_delays():
                             "vzrok": "Zaznana zamuda"
                         })
 
+        # Popravljen del brez tri pik:
         if not vlak_data:
             vlak_data.append({
-                "cas_zajema": now_str, "vlak": "SISTEM", 
-                "relacija": "Kamnik proga", "zamuda": 0, "vzrok": "Vozni red OK"
+                "cas_zajema": now_str, 
+                "vlak": "SISTEM", 
+                "relacija": "Kamnik proga", 
+                "zamuda": 0, 
+                "vzrok": "Vozni red OK"
             })
 
         df = pd.DataFrame(vlak_data)
@@ -40,6 +44,3 @@ def check_delays():
 
 if __name__ == "__main__":
     check_delays()
-
-if not vlak_data:
-    vlak_data.append({ ... "vzrok": "Vozni red OK" })
