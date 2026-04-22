@@ -27,6 +27,9 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+          git fetch origin main
+          git checkout main
           git add zamude.csv
-          git commit -m "Samodejna posodobitev zamud [skip ci]" || echo "Ni sprememb"
-          git push
+          # Dodamo čas v commit, da vidiva, če se sploh izvede
+          git commit -m "Zajem podatkov: $(date)" || echo "Ni sprememb"
+          git push origin main
