@@ -40,3 +40,6 @@ def check_delays():
 
 if __name__ == "__main__":
     check_delays()
+
+if not vlak_data:
+    vlak_data.append({ ... "vzrok": "Vozni red OK" })
