@@ -4,7 +4,6 @@ from datetime import datetime
 import os
 
 def check_delays():
-    # Uporabimo Sitra API, ki je najbolj zanesljiv vir za slovenske vlake
     url = "https://vlaki.sitra.si/api/v2/trains"
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     vlak_data = []
@@ -15,39 +14,29 @@ def check_delays():
             data = response.json()
             for vlak in data.get('trains', []):
                 relacija = vlak.get('relation', '')
-                # Filtriramo specifično za progo Kamnik - Ljubljana
-                if any(x in relacija for x in ["Kamnik", "Graben", "Domžale"]):
+                if any(x in relacija for x in ["Kamnik", "Graben"]):
                     zamuda = int(vlak.get('delay', 0))
-                    # Če je zamuda večja od 0, jo zabeležimo
                     if zamuda > 0:
                         vlak_data.append({
                             "cas_zajema": now_str,
                             "vlak": f"LP {vlak.get('number', '????')}",
                             "relacija": relacija,
                             "zamuda": zamuda,
-                            "vzrok": "Zaznano v realnem času"
+                            "vzrok": "Zaznana zamuda"
                         })
 
-        # NUJNO: Če ni zamud, zapišemo vrstico, da datoteka OBSTAJA
-        # To reši tvojo napako "pathspec did not match any files"
         if not vlak_data:
             vlak_data.append({
-                "cas_zajema": now_str,
-                "vlak": "SISTEM",
-                "relacija": "Kamnik proga",
-                "zamuda": 0,
-                "vzrok": "Vozni red b.p."
+                "cas_zajema": now_str, "vlak": "SISTEM", 
+                "relacija": "Kamnik proga", "zamuda": 0, "vzrok": "Vozni red OK"
             })
 
         df = pd.DataFrame(vlak_data)
         file_exists = os.path.isfile('zamude.csv')
-        
-        # Shranimo v CSV (append mode 'a' ustvari datoteko, če je ni)
         df.to_csv('zamude.csv', mode='a', index=False, header=not file_exists)
-        print(f"Uspešno: {len(vlak_data)} zapisov dodanih v zamude.csv.")
-
+        print("Uspeh!")
     except Exception as e:
-        print(f"Napaka pri delovanju: {e}")
+        print(f"Napaka: {e}")
 
 if __name__ == "__main__":
     check_delays()
