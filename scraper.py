@@ -4,6 +4,7 @@ from datetime import datetime
 import os
 
 def check_delays():
+    # Uporabimo vir Sitra, ki povzema uradne SŽ podatke (podobno kot juliaste skripta)
     url = "https://vlaki.sitra.si/api/v2/trains"
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     vlak_data = []
@@ -14,6 +15,7 @@ def check_delays():
             data = response.json()
             for vlak in data.get('trains', []):
                 relacija = vlak.get('relation', '')
+                # Iskanje tvoje specifične proge (Kamnik/Graben)
                 if any(x in relacija for x in ["Kamnik", "Graben"]):
                     zamuda = int(vlak.get('delay', 0))
                     if zamuda > 0:
@@ -22,14 +24,15 @@ def check_delays():
                             "vlak": f"LP {vlak.get('number', '????')}",
                             "relacija": relacija,
                             "zamuda": zamuda,
-                            "vzrok": "Sitra Real-time"
+                            "vzrok": "SŽ Real-time (Sitra)"
                         })
 
-        # KLJUČNO: Če ni zamud, ustvari "dummy" vrstico, da datoteka obstaja
+        # KLJUČNA REŠITEV: Če ni zamud, ustvari vrstico, da datoteka OBSTAJA
+        # To prepreči napako "pathspec did not match any files"
         if not vlak_data:
             vlak_data.append({
                 "cas_zajema": now_str,
-                "vlak": "INFO",
+                "vlak": "SISTEM",
                 "relacija": "Kamnik proga",
                 "zamuda": 0,
                 "vzrok": "Vozni red b.p."
@@ -37,12 +40,13 @@ def check_delays():
 
         df = pd.DataFrame(vlak_data)
         file_exists = os.path.isfile('zamude.csv')
-        # Shranimo (append mode 'a' ustvari datoteko, če je ni)
+        
+        # Shranimo v CSV (mode='a' bo ustvaril datoteko, če je ni)
         df.to_csv('zamude.csv', mode='a', index=False, header=not file_exists)
-        print("CSV posodobljen.")
+        print("CSV uspešno posodobljen/ustvarjen.")
 
     except Exception as e:
-        print(f"Napaka: {e}")
+        print(f"Napaka pri delovanju: {e}")
 
 if __name__ == "__main__":
     check_delays()
